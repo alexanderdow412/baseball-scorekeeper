@@ -1,0 +1,162 @@
+import { describe, expect, it } from "vitest";
+import {
+  applyOutcome,
+  advanceRunner,
+  adjustTeamScore,
+  changePitcher,
+  clearRunner,
+  createGame,
+  getCurrentBatter,
+  getCurrentPitcher,
+  replaceCurrentBatter,
+  scoreRunner,
+  scoreForTeam,
+  setBase,
+  setHalf,
+  setInning,
+  setOuts,
+  stealBase,
+  updateLineupName,
+} from "./gameLogic.js";
+
+describe("game logic", () => {
+  it("starts a clean game", () => {
+    const game = createGame("Mets", "Yankees");
+
+    expect(game.teams.away).toBe("Mets");
+    expect(game.inning).toBe(1);
+    expect(game.half).toBe("top");
+    expect(scoreForTeam(game, "away")).toBe(0);
+    expect(getCurrentBatter(game).name).toBe("Mets Batter 1");
+    expect(getCurrentPitcher(game).name).toBe("Yankees Pitcher");
+  });
+
+  it("walks the batter after four balls", () => {
+    let game = createGame();
+    game = applyOutcome(game, "Ball");
+    game = applyOutcome(game, "Ball");
+    game = applyOutcome(game, "Ball");
+    game = applyOutcome(game, "Ball");
+
+    expect(game.count.balls).toBe(0);
+    expect(game.bases.first).toBe(true);
+    expect(getCurrentBatter(game).name).toBe("Away Batter 2");
+  });
+
+  it("only forces runners on a walk", () => {
+    let game = createGame();
+    game = setBase(game, "second", true);
+    game = applyOutcome(game, "Walk");
+
+    expect(game.bases).toEqual({ first: true, second: true, third: false });
+  });
+
+  it("scores all occupied bases on a home run", () => {
+    let game = createGame();
+    game = setBase(game, "first", true);
+    game = setBase(game, "second", true);
+    game = setBase(game, "third", true);
+    game = applyOutcome(game, "Home Run");
+
+    expect(scoreForTeam(game, "away")).toBe(4);
+    expect(game.bases).toEqual({ first: false, second: false, third: false });
+  });
+
+  it("lets a runner score manually after a double", () => {
+    let game = createGame();
+    game = setBase(game, "first", true);
+    game = applyOutcome(game, "Double");
+
+    expect(game.bases).toEqual({ first: false, second: true, third: true });
+    expect(scoreForTeam(game, "away")).toBe(0);
+
+    game = scoreRunner(game, "third");
+
+    expect(game.bases).toEqual({ first: false, second: true, third: false });
+    expect(scoreForTeam(game, "away")).toBe(1);
+  });
+
+  it("supports stolen base advances without changing the batter", () => {
+    let game = createGame();
+    const batterName = getCurrentBatter(game).name;
+    game = setBase(game, "first", true);
+    game = stealBase(game, "first");
+
+    expect(game.bases).toEqual({ first: false, second: true, third: false });
+    expect(getCurrentBatter(game).name).toBe(batterName);
+  });
+
+  it("can advance and clear runners manually", () => {
+    let game = createGame();
+    game = setBase(game, "second", true);
+    game = advanceRunner(game, "second");
+    game = clearRunner(game, "third");
+
+    expect(game.bases).toEqual({ first: false, second: false, third: false });
+  });
+
+  it("supports manual inning, half, outs, and score corrections", () => {
+    let game = createGame();
+    game = setInning(game, 10);
+    game = setHalf(game, "bottom");
+    game = setOuts(game, 2);
+    game = adjustTeamScore(game, "home", 1);
+
+    expect(game.inning).toBe(10);
+    expect(game.half).toBe("bottom");
+    expect(game.outs).toBe(2);
+    expect(game.lineScore).toHaveLength(10);
+    expect(scoreForTeam(game, "home")).toBe(1);
+  });
+
+  it("switches halves after three outs", () => {
+    let game = createGame();
+    game = applyOutcome(game, "Out");
+    game = applyOutcome(game, "Out");
+    game = applyOutcome(game, "Out");
+
+    expect(game.half).toBe("bottom");
+    expect(game.outs).toBe(0);
+    expect(game.bases).toEqual({ first: false, second: false, third: false });
+  });
+
+  it("records batter and pitcher stats for a hit", () => {
+    let game = createGame("Mets", "Yankees");
+    game = updateLineupName(game, "away", 0, "Nimmo");
+    game = applyOutcome(game, "Single");
+
+    const batter = game.rosters.away.lineup[0];
+    const pitcher = game.rosters.home.pitchers[0];
+
+    expect(batter.stats.pa).toBe(1);
+    expect(batter.stats.h).toBe(1);
+    expect(batter.results).toEqual(["Single"]);
+    expect(pitcher.stats.bf).toBe(1);
+    expect(pitcher.stats.h).toBe(1);
+    expect(pitcher.results).toEqual(["Nimmo: Single"]);
+  });
+
+  it("replaces the active lineup spot with a pinch hitter", () => {
+    let game = createGame("Mets", "Yankees");
+    game = updateLineupName(game, "away", 0, "Starter");
+    game = replaceCurrentBatter(game, "Pinch Hitter");
+    game = applyOutcome(game, "Double");
+
+    expect(game.rosters.away.lineup[0].name).toBe("Pinch Hitter");
+    expect(game.rosters.away.lineup[0].subFor).toBe("Starter");
+    expect(game.rosters.away.bench[0].name).toBe("Starter");
+    expect(game.rosters.away.substitutions[0]).toContain("Pinch Hitter pinch hit for Starter");
+    expect(game.rosters.away.lineup[0].stats.h).toBe(1);
+  });
+
+  it("attributes future batters to a changed pitcher", () => {
+    let game = createGame("Mets", "Yankees");
+    game = changePitcher(game, "home", "Reliever");
+    game = applyOutcome(game, "Out");
+
+    expect(getCurrentPitcher(game).name).toBe("Reliever");
+    expect(game.rosters.home.pitchers[0].stats.bf).toBe(0);
+    expect(game.rosters.home.pitchers[1].stats.bf).toBe(1);
+    expect(game.rosters.home.pitchers[1].stats.outs).toBe(1);
+  });
+});
