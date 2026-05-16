@@ -1,14 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Check, ClipboardList, Diamond, Minus, PencilLine, Plus, RotateCcw, Save, Trophy, Undo2, Users, Wifi, WifiOff } from "lucide-react";
+import { Check, Clipboard, ClipboardList, Diamond, Flag, Minus, PencilLine, Plus, RotateCcw, Save, Trophy, Undo2, Users, Wifi, WifiOff } from "lucide-react";
 import {
   adjustTeamScore,
   applyOutcome,
   advanceRunner,
   clearRunner,
+  createBoxScoreMarkdown,
   createGame,
   battingTeamKey,
   changePitcher,
+  endGame,
   getCurrentBatter,
   getCurrentPitcher,
   halfLabel,
@@ -136,6 +138,13 @@ function App() {
     setTeams({ away: game?.teams.away || "Away", home: game?.teams.home || "Home" });
   }
 
+  function handleEndGame() {
+    const ok = window.confirm("End this game and create the final box score? You can still copy the Markdown afterward.");
+    if (!ok) return;
+    commitGame(endGame(game), "Game finalized");
+    setView("summary");
+  }
+
   if (!game) {
     return (
       <main className="shell start-shell">
@@ -190,6 +199,10 @@ function App() {
           <Check size={18} aria-hidden="true" />
           <span>{savedAt ? `Saved ${savedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}` : "Not saved yet"}</span>
         </div>
+        <button className={game.endedAt ? "end-game-button finalized" : "end-game-button"} onClick={handleEndGame}>
+          <Flag size={18} aria-hidden="true" />
+          {game.endedAt ? "Final" : "End"}
+        </button>
         <button onClick={undoLastPlay} disabled={undoStack.length === 0}>
           <Undo2 size={18} aria-hidden="true" />
           Undo
@@ -504,13 +517,24 @@ function BaseButton({ label, active, onClick }) {
 
 function Summary({ game, score, commitGame }) {
   const innings = Array.from({ length: Math.max(9, game.lineScore.length) }, (_, index) => index + 1);
+  const boxScoreMarkdown = createBoxScoreMarkdown(game);
+  const [copyStatus, setCopyStatus] = useState("");
+
+  async function copyMarkdown() {
+    try {
+      await navigator.clipboard.writeText(boxScoreMarkdown);
+      setCopyStatus("Copied Markdown");
+    } catch {
+      setCopyStatus("Select and copy below");
+    }
+  }
 
   return (
     <section className="summary">
       <div className="summary-head">
         <div>
           <p className="eyebrow">Game Summary</p>
-          <h2>Line Score</h2>
+          <h2>{game.endedAt ? "Final Box Score" : "Line Score"}</h2>
         </div>
         <Trophy size={30} aria-hidden="true" />
       </div>
@@ -531,6 +555,22 @@ function Summary({ game, score, commitGame }) {
           </tbody>
         </table>
       </div>
+      {game.endedAt && (
+        <section className="box-score-export" aria-label="Markdown box score">
+          <div className="box-score-head">
+            <div>
+              <strong>Markdown Box Score</strong>
+              <span>Copy into Notion or an LLM prompt.</span>
+            </div>
+            <button onClick={copyMarkdown}>
+              <Clipboard size={18} aria-hidden="true" />
+              Copy
+            </button>
+          </div>
+          {copyStatus && <p className="copy-status">{copyStatus}</p>}
+          <textarea readOnly value={boxScoreMarkdown} aria-label="Markdown box score" />
+        </section>
+      )}
       <p className="saved-note">Autosaved on this device.</p>
     </section>
   );

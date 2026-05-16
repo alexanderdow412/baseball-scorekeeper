@@ -4,8 +4,10 @@ import {
   advanceRunner,
   adjustTeamScore,
   changePitcher,
+  createBoxScoreMarkdown,
   clearRunner,
   createGame,
+  endGame,
   getCurrentBatter,
   getCurrentPitcher,
   replaceCurrentBatter,
@@ -158,5 +160,21 @@ describe("game logic", () => {
     expect(game.rosters.home.pitchers[0].stats.bf).toBe(0);
     expect(game.rosters.home.pitchers[1].stats.bf).toBe(1);
     expect(game.rosters.home.pitchers[1].stats.outs).toBe(1);
+  });
+
+  it("finalizes a game and creates markdown box score", () => {
+    let game = createGame("Mets", "Yankees");
+    game = updateLineupName(game, "away", 0, "Nimmo");
+    game = applyOutcome(game, "Home Run");
+    game = endGame(game);
+
+    const markdown = createBoxScoreMarkdown(game);
+
+    expect(game.endedAt).toBeTruthy();
+    expect(markdown).toContain("# Mets at Yankees");
+    expect(markdown).toContain("**Final:** Mets 1, Yankees 0");
+    expect(markdown).toContain("| Team | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | R |");
+    expect(markdown).toContain("| 1 | Nimmo | 1 | 1 | 0 | 0 | 1 | 1 | 0 |");
+    expect(markdown).toContain("## Notes For Narrative");
   });
 });

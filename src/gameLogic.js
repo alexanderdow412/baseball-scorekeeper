@@ -10,6 +10,7 @@ export function createGame(away = "Away", home = "Home") {
     rosters: createRosters(away, home),
     lineScore: Array.from({ length: 9 }, () => ({ away: 0, home: 0 })),
     startedAt: new Date().toISOString(),
+    endedAt: null,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -20,6 +21,7 @@ export function normalizeGame(game) {
   const lineupIndex = game.lineupIndex ?? { away: 0, home: 0 };
   return {
     ...game,
+    endedAt: game.endedAt ?? null,
     lineupIndex,
     rosters: {
       away: normalizeRoster(rosters.away, game.teams.away, "away"),
@@ -148,10 +150,96 @@ export function setOuts(game, outs) {
   return touch({ ...game, outs: clamp(outs, 0, 2) });
 }
 
+export function endGame(game) {
+  return touch({ ...game, endedAt: new Date().toISOString() });
+}
+
+export function createBoxScoreMarkdown(game) {
+  const innings = Array.from({ length: Math.max(9, game.lineScore.length) }, (_, index) => index + 1);
+  const awayRuns = scoreForTeam(game, "away");
+  const homeRuns = scoreForTeam(game, "home");
+  const winner = awayRuns === homeRuns ? "Tie" : awayRuns > homeRuns ? game.teams.away : game.teams.home;
+  const finalLabel = game.endedAt ? new Date(game.endedAt).toLocaleString() : "Not finalized";
+  const lines = [
+    `# ${game.teams.away} at ${game.teams.home}`,
+    "",
+    `**Final:** ${game.teams.away} ${awayRuns}, ${game.teams.home} ${homeRuns}`,
+    `**Result:** ${winner}`,
+    `**Date:** ${finalLabel}`,
+    "",
+    "## Line Score",
+    "",
+    `| Team | ${innings.join(" | ")} | R |`,
+    `| --- | ${innings.map(() => "---").join(" | ")} | --- |`,
+    lineScoreRow(game, "away", innings),
+    lineScoreRow(game, "home", innings),
+    "",
+    "## Batting",
+    "",
+    battingSection(game, "away"),
+    "",
+    battingSection(game, "home"),
+    "",
+    "## Pitching",
+    "",
+    pitchingSection(game, "away"),
+    "",
+    pitchingSection(game, "home"),
+  ];
+
+  const substitutions = [...game.rosters.away.substitutions, ...game.rosters.home.substitutions];
+  if (substitutions.length > 0) {
+    lines.push("", "## Substitutions", "", ...substitutions.map((substitution) => `- ${substitution}`));
+  }
+
+  lines.push(
+    "",
+    "## Notes For Narrative",
+    "",
+    "- Add weather, seat location, companions, favorite moments, and any memorable plays here before asking an LLM for a narrative recap.",
+  );
+
+  return lines.join("\n");
+}
+
 export function updateLineupName(game, teamKey, index, name) {
   const rosters = cloneRosters(game.rosters);
   rosters[teamKey].lineup[index] = { ...rosters[teamKey].lineup[index], name };
   return touch({ ...game, rosters });
+}
+
+function lineScoreRow(game, teamKey, innings) {
+  return `| ${game.teams[teamKey]} | ${innings.map((inning) => game.lineScore[inning - 1]?.[teamKey] ?? 0).join(" | ")} | ${scoreForTeam(game, teamKey)} |`;
+}
+
+function battingSection(game, teamKey) {
+  const rows = game.rosters[teamKey].lineup.map((player, index) => {
+    const note = player.subFor ? `PH for ${player.subFor}` : "";
+    return `| ${index + 1} | ${player.name} | ${player.stats.pa} | ${player.stats.h} | ${player.stats.bb} | ${player.stats.hbp} | ${player.stats.hr} | ${player.stats.rbi} | ${player.stats.so} | ${note} |`;
+  });
+
+  return [
+    `### ${game.teams[teamKey]}`,
+    "",
+    "| Spot | Player | PA | H | BB | HBP | HR | RBI | SO | Notes |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...rows,
+  ].join("\n");
+}
+
+function pitchingSection(game, teamKey) {
+  const rows = game.rosters[teamKey].pitchers.map((pitcher) => {
+    const note = pitcher.entered ? `Entered ${pitcher.entered}` : "";
+    return `| ${pitcher.name} | ${pitcher.stats.bf} | ${pitcher.stats.outs} | ${pitcher.stats.h} | ${pitcher.stats.bb} | ${pitcher.stats.hbp} | ${pitcher.stats.hr} | ${pitcher.stats.k} | ${pitcher.stats.r} | ${note} |`;
+  });
+
+  return [
+    `### ${game.teams[teamKey]}`,
+    "",
+    "| Pitcher | BF | Outs | H | BB | HBP | HR | K | R | Notes |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...rows,
+  ].join("\n");
 }
 
 export function replaceCurrentBatter(game, name) {

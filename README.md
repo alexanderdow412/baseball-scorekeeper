@@ -33,6 +33,18 @@ Use the Lineup tab to edit all nine batting-order spots for each team, rename pi
 
 When a pinch hitter enters, tap `Pinch Hit` while that player's lineup spot is due up. The app replaces the active batting-order spot, moves the previous player to the bench, and records the substitution note.
 
+## End Game and Box Score Export
+
+Tap `End` when the game is complete. After confirmation, the Summary screen shows a final Markdown box score with:
+
+- Line score and final score.
+- Batter totals.
+- Pitcher totals.
+- Substitution notes.
+- A notes section for memories, weather, seats, companions, or key moments.
+
+Use `Copy` to paste the Markdown into Notion or into an LLM prompt for a narrative recap.
+
 ## Run Locally
 
 ```bash

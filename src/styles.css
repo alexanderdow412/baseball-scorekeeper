@@ -194,7 +194,7 @@ input {
 
 .save-undo-bar {
   display: grid;
-  grid-template-columns: 1fr minmax(92px, auto);
+  grid-template-columns: 1fr minmax(78px, auto) minmax(92px, auto);
   gap: 8px;
   margin-bottom: 12px;
 }
@@ -221,6 +221,14 @@ input {
   background: #173f35;
   color: #fff;
   cursor: pointer;
+}
+
+.save-undo-bar .end-game-button {
+  background: #c93325;
+}
+
+.save-undo-bar .end-game-button.finalized {
+  background: #6b4d20;
 }
 
 .save-undo-bar button:disabled {
@@ -644,6 +652,66 @@ input {
   font-weight: 800;
 }
 
+.box-score-export {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  border-top: 1px solid #dce0d6;
+  padding-top: 14px;
+}
+
+.box-score-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.box-score-head div {
+  display: grid;
+  gap: 3px;
+}
+
+.box-score-head span,
+.copy-status {
+  color: #657167;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.box-score-head button {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: #173f35;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.copy-status {
+  margin: 0;
+}
+
+.box-score-export textarea {
+  width: 100%;
+  min-height: 260px;
+  border: 2px solid #bcc5b8;
+  border-radius: 8px;
+  padding: 10px;
+  background: #f7f6ee;
+  color: #152019;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+
 .lineup-screen {
   display: grid;
   gap: 12px;
@@ -831,6 +899,14 @@ input {
   .save-undo-bar button,
   .saved-pill {
     font-size: 0.88rem;
+  }
+
+  .save-undo-bar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .saved-pill {
+    grid-column: 1 / -1;
   }
 
   .runner-action-grid,
