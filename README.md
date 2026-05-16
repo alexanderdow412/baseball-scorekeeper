@@ -62,6 +62,24 @@ The production build is written to `dist/`.
 npm run preview
 ```
 
+## Offline Mode
+
+The app stores the active game and undo history in `localStorage` on the device. There is no backend server or remote database. In production, the service worker caches the app shell and same-origin build assets so the app can reopen after the first successful load, even with poor or no cell service.
+
+To test on a phone after deploying:
+
+1. Open the deployed HTTPS URL while online.
+2. Start or load a game and make one scoring change.
+3. Wait for the `Saved` indicator to update.
+4. Add the app to your home screen if desired.
+5. Turn on Airplane Mode.
+6. Reopen the app from the home screen or refresh the browser tab.
+7. Confirm the app opens, the Online/Offline badge says `Offline`, and the saved game is still present.
+8. Make another scoring change while offline.
+9. Turn Airplane Mode off and confirm the badge returns to `Online`.
+
+If you test locally, use a production preview (`npm run build` then `npm run preview`). Service workers require a production build to match the deployed behavior.
+
 ## Deploy to Vercel
 
 1. Push this project to a Git repository.

@@ -41,6 +41,30 @@ button:active {
   padding: calc(env(safe-area-inset-top) + 12px) 14px calc(env(safe-area-inset-bottom) + 18px);
 }
 
+.connectivity-badge {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.connectivity-badge.online {
+  border: 2px solid #0b5d3b;
+  background: #e7f2ea;
+  color: #0b5d3b;
+}
+
+.connectivity-badge.offline {
+  border: 2px solid #6b4d20;
+  background: #fff3cf;
+  color: #4c3515;
+}
+
 .start-shell {
   display: grid;
   align-items: center;

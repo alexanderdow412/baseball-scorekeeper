@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Check, ClipboardList, Diamond, Minus, PencilLine, Plus, RotateCcw, Save, Trophy, Undo2, Users } from "lucide-react";
+import { Check, ClipboardList, Diamond, Minus, PencilLine, Plus, RotateCcw, Save, Trophy, Undo2, Users, Wifi, WifiOff } from "lucide-react";
 import {
   adjustTeamScore,
   applyOutcome,
@@ -60,12 +60,26 @@ function App() {
   const [teams, setTeams] = useState({ away: "Away", home: "Home" });
   const [feedback, setFeedback] = useState(null);
   const [savedAt, setSavedAt] = useState(() => (loadGame() ? new Date() : null));
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
 
   useEffect(() => {
     if (!feedback) return undefined;
     const timer = window.setTimeout(() => setFeedback(null), 1100);
     return () => window.clearTimeout(timer);
   }, [feedback]);
+
+  useEffect(() => {
+    function updateStatus() {
+      setIsOnline(navigator.onLine);
+    }
+
+    window.addEventListener("online", updateStatus);
+    window.addEventListener("offline", updateStatus);
+    return () => {
+      window.removeEventListener("online", updateStatus);
+      window.removeEventListener("offline", updateStatus);
+    };
+  }, []);
 
   const score = useMemo(() => {
     if (!game) return { away: 0, home: 0 };
@@ -125,6 +139,7 @@ function App() {
   if (!game) {
     return (
       <main className="shell start-shell">
+        <ConnectivityBadge isOnline={isOnline} />
         <section className="start-panel">
           <div>
             <p className="eyebrow">Personal scorebook</p>
@@ -151,6 +166,7 @@ function App() {
 
   return (
     <main className="shell">
+      <ConnectivityBadge isOnline={isOnline} />
       <header className="topbar">
         <button className="icon-button" onClick={newGame} aria-label="Start new game" title="Start new game">
           <RotateCcw size={22} aria-hidden="true" />
@@ -204,6 +220,15 @@ function App() {
       )}
       {feedback && <div className="feedback-toast" role="status">{feedback.message}</div>}
     </main>
+  );
+}
+
+function ConnectivityBadge({ isOnline }) {
+  return (
+    <div className={isOnline ? "connectivity-badge online" : "connectivity-badge offline"} aria-live="polite">
+      {isOnline ? <Wifi size={16} aria-hidden="true" /> : <WifiOff size={16} aria-hidden="true" />}
+      <span>{isOnline ? "Online" : "Offline"}</span>
+    </div>
   );
 }
 
