@@ -291,8 +291,18 @@ function Scorekeeper({ game, commitGame, feedbackId }) {
       </section>
 
       <section key={`state-${feedbackId ?? 0}`} className="state-grid flash-target">
-        <Counter label="Balls" value={game.count.balls} onMinus={() => commit(setCount(game, "balls", game.count.balls - 1), "Ball removed")} onPlus={() => commit(setCount(game, "balls", game.count.balls + 1), "Ball added")} />
-        <Counter label="Strikes" value={game.count.strikes} onMinus={() => commit(setCount(game, "strikes", game.count.strikes - 1), "Strike removed")} onPlus={() => commit(setCount(game, "strikes", game.count.strikes + 1), "Strike added")} />
+        <Counter
+          label="Balls"
+          value={game.count.balls}
+          onMinus={() => commit(setCount(game, "balls", game.count.balls - 1), "Ball removed")}
+          onPlus={() => commit(game.count.balls >= 3 ? applyOutcome(game, "Ball") : setCount(game, "balls", game.count.balls + 1), game.count.balls >= 3 ? "Walk recorded" : "Ball added")}
+        />
+        <Counter
+          label="Strikes"
+          value={game.count.strikes}
+          onMinus={() => commit(setCount(game, "strikes", game.count.strikes - 1), "Strike removed")}
+          onPlus={() => commit(game.count.strikes >= 2 ? applyOutcome(game, "Strike") : setCount(game, "strikes", game.count.strikes + 1), game.count.strikes >= 2 ? "Strikeout recorded" : "Strike added")}
+        />
         <Counter label="Outs" value={game.outs} onMinus={() => commit(setOuts(game, game.outs - 1), "Out removed")} onPlus={() => commit(applyOutcome(game, "Out"), "Out recorded")} />
       </section>
 
