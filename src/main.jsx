@@ -18,6 +18,7 @@ import {
   normalizeGame,
   pitchingTeamKey,
   replaceCurrentBatter,
+  replaceLineupPlayer,
   scoreForTeam,
   scoreRunner,
   setBase,
@@ -426,6 +427,11 @@ function TeamRoster({ teamKey, game, commitGame }) {
     if (name) commitGame(changePitcher(game, teamKey, name), "Pitcher change saved");
   }
 
+  function substitutePlayer(index, outgoingName) {
+    const name = window.prompt(`Who replaced ${outgoingName}?`);
+    if (name) commitGame(replaceLineupPlayer(game, teamKey, index, name), "Substitution saved");
+  }
+
   return (
     <article className="roster-card">
       <div className="roster-head">
@@ -447,9 +453,26 @@ function TeamRoster({ teamKey, game, commitGame }) {
             <span>{index + 1}</span>
             <input value={player.name} onChange={(event) => commitGame(updateLineupName(game, teamKey, index, event.target.value), "Lineup saved")} />
             <StatsLine player={player} type="batter" />
+            <button className="small-action quiet sub-action" type="button" onClick={() => substitutePlayer(index, player.name)}>
+              Sub
+            </button>
           </label>
         ))}
       </div>
+
+      {roster.bench.length > 0 && (
+        <div className="bench-list">
+          <strong>Replaced Players</strong>
+          {roster.bench.map((player) => (
+            <div key={player.id} className="bench-row">
+              <span>{player.name}</span>
+              <small>
+                Spot {player.replacedInSpot ?? "-"} | {player.replacedBy ? `Replaced by ${player.replacedBy}` : "Replaced"} | PA {player.stats.pa} | H {player.stats.h}
+              </small>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="pitcher-section">
         <div className="section-title">

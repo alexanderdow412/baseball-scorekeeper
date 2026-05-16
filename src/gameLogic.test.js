@@ -11,6 +11,7 @@ import {
   getCurrentBatter,
   getCurrentPitcher,
   replaceCurrentBatter,
+  replaceLineupPlayer,
   scoreRunner,
   scoreForTeam,
   setBase,
@@ -149,6 +150,25 @@ describe("game logic", () => {
     expect(game.rosters.away.bench[0].name).toBe("Starter");
     expect(game.rosters.away.substitutions[0]).toContain("Pinch Hitter pinch hit for Starter");
     expect(game.rosters.away.lineup[0].stats.h).toBe(1);
+  });
+
+  it("substitutes any lineup spot and keeps replaced player stats in box score", () => {
+    let game = createGame("Mets", "Pirates");
+    game = updateLineupName(game, "home", 4, "O'Hearn");
+    game = { ...game, half: "bottom", lineupIndex: { ...game.lineupIndex, home: 4 } };
+    game = applyOutcome(game, "Single");
+    game = replaceLineupPlayer(game, "home", 4, "Yorke");
+    game = endGame(game);
+
+    const markdown = createBoxScoreMarkdown(game);
+
+    expect(game.rosters.home.lineup[4].name).toBe("Yorke");
+    expect(game.rosters.home.lineup[4].subFor).toBe("O'Hearn");
+    expect(game.rosters.home.bench[0].name).toBe("O'Hearn");
+    expect(game.rosters.home.bench[0].stats.h).toBe(1);
+    expect(markdown).toContain("| 5 | Yorke | 0 | 0");
+    expect(markdown).toContain("| 5 | O'Hearn | 1 | 1");
+    expect(markdown).toContain("Yorke replaced O'Hearn");
   });
 
   it("attributes future batters to a changed pitcher", () => {

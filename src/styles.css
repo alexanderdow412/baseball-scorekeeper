@@ -775,7 +775,7 @@ input {
 }
 
 .player-row {
-  grid-template-columns: 30px 1fr;
+  grid-template-columns: 30px 1fr minmax(62px, auto);
 }
 
 .player-row.active,
@@ -799,6 +799,39 @@ input {
 
 .player-row small {
   grid-column: 2;
+}
+
+.player-row .sub-action {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  min-height: 52px;
+  align-self: stretch;
+}
+
+.bench-list {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #dce0d6;
+  padding-top: 12px;
+}
+
+.bench-row {
+  display: grid;
+  gap: 4px;
+  border: 2px solid #e0e3db;
+  border-radius: 8px;
+  padding: 8px;
+  background: #f7f6ee;
+}
+
+.bench-row span {
+  font-weight: 900;
+}
+
+.bench-row small {
+  color: #657167;
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .pitcher-row small,
@@ -912,6 +945,15 @@ input {
   .runner-action-grid,
   .correction-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .player-row {
+    grid-template-columns: 30px 1fr;
+  }
+
+  .player-row .sub-action {
+    grid-column: 2;
+    grid-row: auto;
   }
 
   .outcome-button {

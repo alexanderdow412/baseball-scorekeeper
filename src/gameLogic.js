@@ -208,14 +208,39 @@ export function updateLineupName(game, teamKey, index, name) {
   return touch({ ...game, rosters });
 }
 
+export function replaceLineupPlayer(game, teamKey, index, name) {
+  const trimmed = name.trim();
+  if (!trimmed) return touch(game);
+  const rosters = cloneRosters(game.rosters);
+  const outgoing = rosters[teamKey].lineup[index];
+  const replacement = createBatter(trimmed, `${teamKey}-sub-${Date.now()}`);
+  replacement.subFor = outgoing.name;
+  replacement.entered = `${inningLabel(game)} ${halfLabel(game)}`;
+  replacement.enteredAs = "SUB";
+  outgoing.replacedBy = replacement.name;
+  outgoing.replacedInSpot = index + 1;
+  rosters[teamKey].bench = [...rosters[teamKey].bench, outgoing];
+  rosters[teamKey].lineup[index] = replacement;
+  rosters[teamKey].substitutions = [
+    ...rosters[teamKey].substitutions,
+    `${replacement.name} replaced ${outgoing.name} in lineup spot ${index + 1} in the ${replacement.entered}.`,
+  ];
+  return touch({ ...game, rosters });
+}
+
 function lineScoreRow(game, teamKey, innings) {
   return `| ${game.teams[teamKey]} | ${innings.map((inning) => game.lineScore[inning - 1]?.[teamKey] ?? 0).join(" | ")} | ${scoreForTeam(game, teamKey)} |`;
 }
 
 function battingSection(game, teamKey) {
-  const rows = game.rosters[teamKey].lineup.map((player, index) => {
-    const note = player.subFor ? `PH for ${player.subFor}` : "";
+  const lineupRows = game.rosters[teamKey].lineup.map((player, index) => {
+    const note = player.subFor ? `${player.enteredAs === "PH" ? "PH" : "Sub"} for ${player.subFor}` : "";
     return `| ${index + 1} | ${player.name} | ${player.stats.pa} | ${player.stats.h} | ${player.stats.bb} | ${player.stats.hbp} | ${player.stats.hr} | ${player.stats.rbi} | ${player.stats.so} | ${note} |`;
+  });
+  const benchRows = game.rosters[teamKey].bench.map((player) => {
+    const spot = player.replacedInSpot ?? "-";
+    const note = player.replacedBy ? `Replaced by ${player.replacedBy}` : "Replaced";
+    return `| ${spot} | ${player.name} | ${player.stats.pa} | ${player.stats.h} | ${player.stats.bb} | ${player.stats.hbp} | ${player.stats.hr} | ${player.stats.rbi} | ${player.stats.so} | ${note} |`;
   });
 
   return [
@@ -223,7 +248,8 @@ function battingSection(game, teamKey) {
     "",
     "| Spot | Player | PA | H | BB | HBP | HR | RBI | SO | Notes |",
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
-    ...rows,
+    ...lineupRows,
+    ...benchRows,
   ].join("\n");
 }
 
@@ -247,18 +273,15 @@ export function replaceCurrentBatter(game, name) {
   if (!trimmed) return touch(game);
   const teamKey = battingTeamKey(game);
   const index = game.lineupIndex[teamKey];
-  const rosters = cloneRosters(game.rosters);
-  const outgoing = rosters[teamKey].lineup[index];
-  const replacement = createBatter(trimmed, `${teamKey}-ph-${Date.now()}`);
-  replacement.subFor = outgoing.name;
-  replacement.entered = `${inningLabel(game)} ${halfLabel(game)}`;
-  rosters[teamKey].bench = [...rosters[teamKey].bench, outgoing];
-  rosters[teamKey].lineup[index] = replacement;
+  const nextGame = replaceLineupPlayer(game, teamKey, index, trimmed);
+  const rosters = cloneRosters(nextGame.rosters);
+  const replacement = rosters[teamKey].lineup[index];
+  rosters[teamKey].lineup[index] = { ...replacement, enteredAs: "PH" };
   rosters[teamKey].substitutions = [
-    ...rosters[teamKey].substitutions,
-    `${replacement.name} pinch hit for ${outgoing.name} in the ${replacement.entered}.`,
+    ...rosters[teamKey].substitutions.slice(0, -1),
+    `${replacement.name} pinch hit for ${replacement.subFor} in the ${replacement.entered}.`,
   ];
-  return touch({ ...game, rosters });
+  return touch({ ...nextGame, rosters });
 }
 
 export function updatePitcherName(game, teamKey, pitcherId, name) {
