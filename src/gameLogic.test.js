@@ -5,6 +5,7 @@ import {
   adjustTeamScore,
   changePitcher,
   createBoxScoreMarkdown,
+  caughtStealing,
   clearRunner,
   createGame,
   endGame,
@@ -12,6 +13,7 @@ import {
   getCurrentPitcher,
   replaceCurrentBatter,
   replaceLineupPlayer,
+  recordFieldingOut,
   scoreRunner,
   scoreForTeam,
   setBase,
@@ -77,6 +79,7 @@ describe("game logic", () => {
 
     expect(game.bases).toEqual({ first: false, second: true, third: false });
     expect(scoreForTeam(game, "away")).toBe(1);
+    expect(game.rosters.home.pitchers[0].stats.r).toBe(1);
   });
 
   it("supports stolen base advances without changing the batter", () => {
@@ -87,6 +90,30 @@ describe("game logic", () => {
 
     expect(game.bases).toEqual({ first: false, second: true, third: false });
     expect(getCurrentBatter(game).name).toBe(batterName);
+  });
+
+  it("records caught stealing as a runner out without changing the batter", () => {
+    let game = createGame();
+    const batterName = getCurrentBatter(game).name;
+    game = setBase(game, "first", true);
+    game = caughtStealing(game, "first");
+
+    expect(game.bases.first).toBe(false);
+    expect(game.outs).toBe(1);
+    expect(getCurrentBatter(game).name).toBe(batterName);
+    expect(game.plays[0].result).toBe("CS 1B");
+  });
+
+  it("records fielding out notation and double plays", () => {
+    let game = createGame();
+    game = setBase(game, "first", true);
+    game = recordFieldingOut(game, "ground", "6-4-3", 2);
+
+    expect(game.outs).toBe(2);
+    expect(game.bases.first).toBe(false);
+    expect(getCurrentBatter(game).name).toBe("Away Batter 2");
+    expect(game.rosters.away.lineup[0].results).toEqual(["GO 6-4-3"]);
+    expect(game.plays[0]).toMatchObject({ inning: 1, teamKey: "away", lineupSpot: 1, result: "GO 6-4-3", outs: 2 });
   });
 
   it("can advance and clear runners manually", () => {
@@ -182,6 +209,30 @@ describe("game logic", () => {
     expect(game.rosters.home.pitchers[1].stats.outs).toBe(1);
   });
 
+  it("charges inherited runners to the pitcher who put them on base", () => {
+    let game = createGame("Mets", "Yankees");
+    game = applyOutcome(game, "Single");
+    game = changePitcher(game, "home", "Reliever");
+    game = applyOutcome(game, "Double");
+    game = scoreRunner(game, "third");
+
+    expect(game.rosters.home.pitchers[0].stats.r).toBe(1);
+    expect(game.rosters.home.pitchers[1].stats.r).toBe(0);
+  });
+
+  it("charges a bases-loaded walk run to the inherited runner's pitcher", () => {
+    let game = createGame("Mets", "Yankees");
+    game = applyOutcome(game, "Single");
+    game = applyOutcome(game, "Single");
+    game = applyOutcome(game, "Single");
+    game = changePitcher(game, "home", "Reliever");
+    game = applyOutcome(game, "Walk");
+
+    expect(scoreForTeam(game, "away")).toBe(1);
+    expect(game.rosters.home.pitchers[0].stats.r).toBe(1);
+    expect(game.rosters.home.pitchers[1].stats.r).toBe(0);
+  });
+
   it("finalizes a game and creates markdown box score", () => {
     let game = createGame("Mets", "Yankees");
     game = updateLineupName(game, "away", 0, "Nimmo");
@@ -194,6 +245,8 @@ describe("game logic", () => {
     expect(markdown).toContain("# Mets at Yankees");
     expect(markdown).toContain("**Final:** Mets 1, Yankees 0");
     expect(markdown).toContain("| Team | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | R |");
+    expect(markdown).toContain("## Scorecard");
+    expect(markdown).toContain("| Spot | Batter | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |");
     expect(markdown).toContain("| 1 | Nimmo | 1 | 1 | 0 | 0 | 1 | 1 | 0 |");
     expect(markdown).toContain("## Notes For Narrative");
   });

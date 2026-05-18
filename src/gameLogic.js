@@ -6,8 +6,10 @@ export function createGame(away = "Away", home = "Home") {
     outs: 0,
     count: { balls: 0, strikes: 0 },
     bases: { first: false, second: false, third: false },
+    baseRunners: emptyBaseRunners(),
     lineupIndex: { away: 0, home: 0 },
     rosters: createRosters(away, home),
+    plays: [],
     lineScore: Array.from({ length: 9 }, () => ({ away: 0, home: 0 })),
     startedAt: new Date().toISOString(),
     endedAt: null,
@@ -23,6 +25,8 @@ export function normalizeGame(game) {
     ...game,
     endedAt: game.endedAt ?? null,
     lineupIndex,
+    plays: game.plays ?? [],
+    baseRunners: normalizeBaseRunners(game.baseRunners),
     rosters: {
       away: normalizeRoster(rosters.away, game.teams.away, "away"),
       home: normalizeRoster(rosters.home, game.teams.home, "home"),
@@ -68,7 +72,14 @@ export function setCount(game, key, value) {
 }
 
 export function setBase(game, base, occupied) {
-  return touch({ ...game, bases: { ...game.bases, [base]: occupied } });
+  return touch({
+    ...game,
+    bases: { ...game.bases, [base]: occupied },
+    baseRunners: {
+      ...normalizeBaseRunners(game.baseRunners),
+      [base]: occupied ? game.baseRunners?.[base] ?? createRunnerResponsibility(game) : null,
+    },
+  });
 }
 
 export function advanceRunner(game, base) {
@@ -85,6 +96,11 @@ export function advanceRunner(game, base) {
       [base]: false,
       [nextBase]: true,
     },
+    baseRunners: {
+      ...normalizeBaseRunners(game.baseRunners),
+      [base]: null,
+      [nextBase]: game.baseRunners?.[base] ?? createRunnerResponsibility(game),
+    },
   });
 }
 
@@ -99,11 +115,17 @@ export function scoreRunner(game, base) {
     [teamKey]: lineScore[inningIndex][teamKey] + 1,
   };
 
+  const credited = creditPitcherRuns(game, [game.baseRunners?.[base] ?? createRunnerResponsibility(game)]);
+
   return touch({
-    ...game,
+    ...credited,
     bases: {
-      ...game.bases,
+      ...credited.bases,
       [base]: false,
+    },
+    baseRunners: {
+      ...normalizeBaseRunners(credited.baseRunners),
+      [base]: null,
     },
     lineScore,
   });
@@ -115,6 +137,21 @@ export function clearRunner(game, base) {
 
 export function stealBase(game, base) {
   return advanceRunner(game, base);
+}
+
+export function caughtStealing(game, base) {
+  if (!game.bases[base]) return touch(game);
+  return applyNonPlateOut({
+    ...game,
+    bases: {
+      ...game.bases,
+      [base]: false,
+    },
+    baseRunners: {
+      ...normalizeBaseRunners(game.baseRunners),
+      [base]: null,
+    },
+  }, `CS ${baseLabel(base)}`);
 }
 
 export function setLineScore(game, inningNumber, teamKey, runs) {
@@ -173,6 +210,12 @@ export function createBoxScoreMarkdown(game) {
     `| --- | ${innings.map(() => "---").join(" | ")} | --- |`,
     lineScoreRow(game, "away", innings),
     lineScoreRow(game, "home", innings),
+    "",
+    "## Scorecard",
+    "",
+    scorecardSection(game, "away", innings),
+    "",
+    scorecardSection(game, "home", innings),
     "",
     "## Batting",
     "",
@@ -250,6 +293,27 @@ function battingSection(game, teamKey) {
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ...lineupRows,
     ...benchRows,
+  ].join("\n");
+}
+
+function scorecardSection(game, teamKey, innings) {
+  const rows = game.rosters[teamKey].lineup.map((player, index) => {
+    const spot = index + 1;
+    const cells = innings.map((inning) => {
+      return (game.plays ?? [])
+        .filter((play) => play.teamKey === teamKey && play.lineupSpot === spot && play.inning === inning)
+        .map((play) => play.result)
+        .join(", ");
+    });
+    return `| ${spot} | ${player.name} | ${cells.join(" | ")} |`;
+  });
+
+  return [
+    `### ${game.teams[teamKey]}`,
+    "",
+    `| Spot | Batter | ${innings.join(" | ")} |`,
+    `| --- | --- | ${innings.map(() => "---").join(" | ")} |`,
+    ...rows,
   ].join("\n");
 }
 
@@ -336,21 +400,38 @@ export function applyOutcome(game, outcome) {
   }
 }
 
-function addOut(game, result = "Out") {
-  const recorded = recordPlateAppearance(game, { result, outs: 1 });
-  const nextGame = advanceLineup(recorded);
+export function recordFieldingOut(game, outType, notation = "", outCount = 1) {
+  const label = fieldingOutLabel(outType, notation);
+  const nextGame = outCount > 1 ? clearLeadForcedRunner(game) : game;
+  return addOut(nextGame, label, outCount);
+}
 
-  if (game.outs < 2) {
-    return touch({ ...nextGame, outs: game.outs + 1, count: { balls: 0, strikes: 0 } });
+function addOut(game, result = "Out", outCount = 1) {
+  const outsRecorded = clamp(outCount, 1, 3);
+  const recorded = recordPlateAppearance(game, { result, outs: outsRecorded });
+  const nextGame = advanceLineup(recorded);
+  return applyOuts(nextGame, outsRecorded);
+}
+
+function applyNonPlateOut(game, result) {
+  return applyOuts(recordNonPlatePlay(game, { result, outs: 1 }), 1);
+}
+
+function applyOuts(game, outCount) {
+  const totalOuts = game.outs + outCount;
+
+  if (totalOuts < 3) {
+    return touch({ ...game, outs: totalOuts, count: { balls: 0, strikes: 0 } });
   }
 
   return touch({
-    ...nextGame,
+    ...game,
     inning: game.half === "bottom" ? game.inning + 1 : game.inning,
     half: game.half === "top" ? "bottom" : "top",
     outs: 0,
     count: { balls: 0, strikes: 0 },
     bases: { first: false, second: false, third: false },
+    baseRunners: emptyBaseRunners(),
     lineScore: ensureInnings(game.lineScore, game.half === "bottom" ? game.inning + 1 : game.inning),
   });
 }
@@ -365,18 +446,25 @@ function advanceBatter(game, basesAdvanced, result) {
   ];
   let runs = 0;
   const nextBases = { first: false, second: false, third: false };
+  const nextBaseRunners = emptyBaseRunners();
+  const scoredResponsibilities = [];
 
   for (const runner of runners) {
     if (!runner.occupied) continue;
     const nextBase = runner.base + basesAdvanced;
+    const responsibility = runner.base === 0 ? createRunnerResponsibility(game) : game.baseRunners?.[baseNameFromNumber(runner.base)] ?? createRunnerResponsibility(game);
     if (nextBase >= 4) {
       runs += 1;
+      scoredResponsibilities.push(responsibility);
     } else if (nextBase === 3) {
       nextBases.third = true;
+      nextBaseRunners.third = responsibility;
     } else if (nextBase === 2) {
       nextBases.second = true;
+      nextBaseRunners.second = responsibility;
     } else if (nextBase === 1) {
       nextBases.first = true;
+      nextBaseRunners.first = responsibility;
     }
   }
 
@@ -387,29 +475,36 @@ function advanceBatter(game, basesAdvanced, result) {
     [battingTeam]: lineScore[inningIndex][battingTeam] + runs,
   };
 
-  const recorded = recordPlateAppearance({ ...game, lineScore }, { result, runs, hit: true, homeRun: basesAdvanced === 4 });
+  const recorded = creditPitcherRuns(recordPlateAppearance({ ...game, lineScore }, { result, runs, hit: true, homeRun: basesAdvanced === 4 }), scoredResponsibilities);
   return touch(advanceLineup({
     ...recorded,
     count: { balls: 0, strikes: 0 },
     bases: nextBases,
+    baseRunners: nextBaseRunners,
   }));
 }
 
 function forceBatterToFirst(game, result) {
   const battingTeam = battingTeamKey(game);
   const nextBases = { ...game.bases };
+  const nextBaseRunners = normalizeBaseRunners(game.baseRunners);
+  const scoredResponsibilities = [];
   let runs = 0;
 
   if (game.bases.first && game.bases.second && game.bases.third) {
     runs += 1;
+    scoredResponsibilities.push(nextBaseRunners.third ?? createRunnerResponsibility(game));
   }
   if (game.bases.first && game.bases.second) {
     nextBases.third = true;
+    nextBaseRunners.third = nextBaseRunners.second ?? createRunnerResponsibility(game);
   }
   if (game.bases.first) {
     nextBases.second = true;
+    nextBaseRunners.second = nextBaseRunners.first ?? createRunnerResponsibility(game);
   }
   nextBases.first = true;
+  nextBaseRunners.first = createRunnerResponsibility(game);
 
   const lineScore = ensureInnings(game.lineScore, game.inning);
   if (runs > 0) {
@@ -420,17 +515,18 @@ function forceBatterToFirst(game, result) {
     };
   }
 
-  const recorded = recordPlateAppearance({ ...game, lineScore }, {
+  const recorded = creditPitcherRuns(recordPlateAppearance({ ...game, lineScore }, {
     result,
     runs,
     walk: result === "Walk",
     hbp: result === "Hit by Pitch",
-  });
+  }), scoredResponsibilities);
 
   return touch(advanceLineup({
     ...recorded,
     count: { balls: 0, strikes: 0 },
     bases: nextBases,
+    baseRunners: nextBaseRunners,
   }));
 }
 
@@ -451,6 +547,7 @@ function recordPlateAppearance(game, details) {
   const batter = getCurrentBatter(game);
   const pitcher = getCurrentPitcher(game);
   const rosters = cloneRosters(game.rosters);
+  const battingIndex = game.lineupIndex[batterTeam];
 
   rosters[batterTeam].lineup = rosters[batterTeam].lineup.map((player) => {
     if (player.id !== batter.id) return player;
@@ -470,7 +567,53 @@ function recordPlateAppearance(game, details) {
     };
   });
 
-  return { ...game, rosters };
+  return {
+    ...game,
+    rosters,
+    plays: [
+      ...(game.plays ?? []),
+      createPlayLogEntry(game, {
+        ...details,
+        batterName: batter.name,
+        pitcherName: pitcher.name,
+        teamKey: batterTeam,
+        lineupSpot: battingIndex + 1,
+      }),
+    ],
+  };
+}
+
+function recordNonPlatePlay(game, details) {
+  return {
+    ...game,
+    plays: [
+      ...(game.plays ?? []),
+      createPlayLogEntry(game, {
+        ...details,
+        batterName: "",
+        pitcherName: "",
+        teamKey: battingTeamKey(game),
+        lineupSpot: null,
+        isPlateAppearance: false,
+      }),
+    ],
+  };
+}
+
+function createPlayLogEntry(game, details) {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    inning: game.inning,
+    half: game.half,
+    teamKey: details.teamKey,
+    lineupSpot: details.lineupSpot,
+    batterName: details.batterName,
+    pitcherName: details.pitcherName,
+    result: details.result,
+    outs: details.outs ?? 0,
+    runs: details.runs ?? 0,
+    isPlateAppearance: details.isPlateAppearance ?? true,
+  };
 }
 
 function addBatterStats(stats, details) {
@@ -495,7 +638,7 @@ function addPitcherStats(stats, details) {
     bb: stats.bb + (details.walk ? 1 : 0),
     hbp: stats.hbp + (details.hbp ? 1 : 0),
     hr: stats.hr + (details.homeRun ? 1 : 0),
-    r: stats.r + (details.runs ?? 0),
+    r: stats.r,
     k: stats.k + (details.result === "Strikeout" ? 1 : 0),
     outs: stats.outs + (details.outs ?? 0),
   };
@@ -580,12 +723,71 @@ function clonePlayer(player) {
   return { ...player, stats: { ...player.stats }, results: [...player.results] };
 }
 
+function creditPitcherRuns(game, responsibilities) {
+  if (responsibilities.length === 0) return game;
+  const rosters = cloneRosters(game.rosters);
+  const fallback = createRunnerResponsibility(game);
+
+  for (const responsibility of responsibilities) {
+    const runnerResponsibility = responsibility ?? fallback;
+    if (!runnerResponsibility) continue;
+    rosters[runnerResponsibility.teamKey].pitchers = rosters[runnerResponsibility.teamKey].pitchers.map((pitcher) => {
+      if (pitcher.id !== runnerResponsibility.pitcherId) return pitcher;
+      return { ...pitcher, stats: { ...pitcher.stats, r: pitcher.stats.r + 1 } };
+    });
+  }
+
+  return { ...game, rosters };
+}
+
 function ensureInnings(lineScore, inningNumber) {
   const next = lineScore.map((inning) => ({ ...inning }));
   while (next.length < inningNumber) {
     next.push({ away: 0, home: 0 });
   }
   return next;
+}
+
+function fieldingOutLabel(outType, notation) {
+  const clean = notation.trim();
+  const prefix = outType === "ground" ? "GO" : outType === "pop" ? "PO" : outType === "line" ? "LD" : "DP";
+  return clean ? `${prefix} ${clean}` : prefix;
+}
+
+function emptyBaseRunners() {
+  return { first: null, second: null, third: null };
+}
+
+function normalizeBaseRunners(baseRunners) {
+  return {
+    first: baseRunners?.first ?? null,
+    second: baseRunners?.second ?? null,
+    third: baseRunners?.third ?? null,
+  };
+}
+
+function createRunnerResponsibility(game) {
+  const pitcherTeam = pitchingTeamKey(game);
+  return { teamKey: pitcherTeam, pitcherId: getCurrentPitcher(game).id };
+}
+
+function baseNameFromNumber(baseNumber) {
+  if (baseNumber === 1) return "first";
+  if (baseNumber === 2) return "second";
+  return "third";
+}
+
+function baseLabel(base) {
+  if (base === "first") return "1B";
+  if (base === "second") return "2B";
+  return "3B";
+}
+
+function clearLeadForcedRunner(game) {
+  if (game.bases.first) return clearRunner(game, "first");
+  if (game.bases.second) return clearRunner(game, "second");
+  if (game.bases.third) return clearRunner(game, "third");
+  return game;
 }
 
 function touch(game) {

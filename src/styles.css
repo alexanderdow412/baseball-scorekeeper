@@ -476,6 +476,11 @@ input {
   margin-top: 12px;
 }
 
+.compact-outcomes {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .correction-panel {
   display: grid;
   gap: 10px;
@@ -551,7 +556,7 @@ input {
 
 .runner-action-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -571,6 +576,10 @@ input {
   background: #6b4d20;
 }
 
+.runner-action-grid .caught-action {
+  background: #c93325;
+}
+
 .runner-action-grid .clear-action {
   background: #e1e6dc;
   color: #14221a;
@@ -588,6 +597,61 @@ input {
   color: #152019;
   box-shadow: inset 0 0 0 2px #cfd5c7;
   font-size: 1rem;
+}
+
+.compact-outcomes .outcome-button {
+  min-height: 34px;
+  padding: 5px 8px;
+  font-size: 0.92rem;
+}
+
+.compact-outcomes .fielding-out {
+  background: #173f35;
+  color: #fff;
+  box-shadow: inset 0 0 0 2px #173f35;
+}
+
+.compact-outcomes .fielding-out.active {
+  background: #f2b84b;
+  color: #14221a;
+  box-shadow: inset 0 0 0 2px #d69a24;
+}
+
+.scorecard-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.scorecard-title strong {
+  font-size: 1.05rem;
+}
+
+.scorecard-title span {
+  color: #657167;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+.notation-form button {
+  min-height: 54px;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px;
+  background: #173f35;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.notation-form {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr minmax(92px, auto);
+  align-items: end;
+  gap: 8px;
 }
 
 .outcome-button.accent {
@@ -650,6 +714,77 @@ input {
   margin: 14px 0 0;
   color: #657167;
   font-weight: 800;
+}
+
+.scorecard-preview {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  border-top: 1px solid #dce0d6;
+  padding-top: 14px;
+}
+
+.scorecard-scroll {
+  display: grid;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.scorecard-table {
+  min-width: 920px;
+  border-collapse: collapse;
+  background: #fffefa;
+  font-size: 0.78rem;
+}
+
+.scorecard-table caption {
+  padding: 8px 0;
+  color: #173f35;
+  font-size: 1rem;
+  font-weight: 900;
+  text-align: left;
+}
+
+.scorecard-table th,
+.scorecard-table td {
+  width: 58px;
+  height: 42px;
+  border: 1px solid #aeb7ab;
+  padding: 4px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.scorecard-table thead th {
+  background: #e9eadf;
+  color: #173f35;
+  font-weight: 900;
+}
+
+.scorecard-table th:first-child {
+  width: 44px;
+}
+
+.scorecard-table .scorecard-name {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: 150px;
+  max-width: 150px;
+  overflow: hidden;
+  background: #fffefa;
+  font-weight: 900;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scorecard-cell {
+  color: #263329;
+  font-family: "Comic Sans MS", "Bradley Hand", cursive;
+  font-size: 0.72rem;
+  line-height: 1.1;
 }
 
 .box-score-export {
@@ -947,6 +1082,10 @@ input {
     grid-template-columns: 1fr 1fr;
   }
 
+  .notation-form {
+    grid-template-columns: 1fr;
+  }
+
   .player-row {
     grid-template-columns: 30px 1fr;
   }
@@ -958,5 +1097,9 @@ input {
 
   .outcome-button {
     min-height: 66px;
+  }
+
+  .compact-outcomes .outcome-button {
+    min-height: 38px;
   }
 }

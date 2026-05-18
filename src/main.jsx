@@ -10,6 +10,7 @@ import {
   createGame,
   battingTeamKey,
   changePitcher,
+  caughtStealing,
   endGame,
   getCurrentBatter,
   getCurrentPitcher,
@@ -19,6 +20,7 @@ import {
   pitchingTeamKey,
   replaceCurrentBatter,
   replaceLineupPlayer,
+  recordFieldingOut,
   scoreForTeam,
   scoreRunner,
   setBase,
@@ -259,20 +261,6 @@ function Scorekeeper({ game, commitGame, feedbackId }) {
   const battingTeam = game.half === "top" ? game.teams.away : game.teams.home;
   const currentBatter = getCurrentBatter(game);
   const currentPitcher = getCurrentPitcher(game);
-  const outcomes = [
-    "Ball",
-    "Strike",
-    "Foul",
-    "In play / Out",
-    "Single",
-    "Double",
-    "Triple",
-    "Home Run",
-    "Walk",
-    "Hit by Pitch",
-    "Error",
-    "Out",
-  ];
 
   function commit(nextGame, message) {
     commitGame(nextGame, message);
@@ -307,6 +295,8 @@ function Scorekeeper({ game, commitGame, feedbackId }) {
         <Counter label="Outs" value={game.outs} onMinus={() => commit(setOuts(game, game.outs - 1), "Out removed")} onPlus={() => commit(applyOutcome(game, "Out"), "Out recorded")} />
       </section>
 
+      <OutcomeControls game={game} onCommit={commit} />
+
       <CorrectionPanel game={game} onCommit={commit} />
 
       <section key={`field-${feedbackId ?? 0}`} className="field-panel flash-target" aria-label="Bases">
@@ -325,15 +315,61 @@ function Scorekeeper({ game, commitGame, feedbackId }) {
       </section>
 
       <RunnerControls game={game} onCommit={commit} feedbackId={feedbackId} />
-
-      <section className="outcomes" aria-label="Common outcomes">
-        {outcomes.map((outcome) => (
-          <button key={outcome} onClick={() => commit(applyOutcome(game, outcome), `${outcome} recorded`)} className={outcome === "Home Run" ? "outcome-button accent" : "outcome-button"}>
-            {outcome}
-          </button>
-        ))}
-      </section>
     </>
+  );
+}
+
+function OutcomeControls({ game, onCommit }) {
+  const [selectedOut, setSelectedOut] = useState(null);
+  const [notation, setNotation] = useState("");
+  const outOptions = [
+    { key: "ground", label: "Ground Out", placeholder: "6-3 or 6-4-3" },
+    { key: "pop", label: "Pop Up", placeholder: "7" },
+    { key: "line", label: "Line Drive", placeholder: "5" },
+    { key: "double", label: "Double Play", placeholder: "6-4-3", outs: 2 },
+  ];
+  const outcomes = [
+    "Single",
+    "Double",
+    "Triple",
+    "Home Run",
+    "Walk",
+    "Hit by Pitch",
+    "Error",
+    "Out",
+  ];
+  const activeOption = outOptions.find((option) => option.key === selectedOut);
+
+  function submitOut(event) {
+    event.preventDefault();
+    if (!activeOption) return;
+    onCommit(recordFieldingOut(game, activeOption.key, notation, activeOption.outs ?? 1), `${activeOption.label} recorded`);
+    setSelectedOut(null);
+    setNotation("");
+  }
+
+  return (
+    <section className="outcomes compact-outcomes" aria-label="Common outcomes">
+      {outOptions.map((option) => (
+        <button key={option.key} className={selectedOut === option.key ? "outcome-button fielding-out active" : "outcome-button fielding-out"} onClick={() => setSelectedOut(option.key)}>
+          {option.label}
+        </button>
+      ))}
+      {outcomes.map((outcome) => (
+        <button key={outcome} onClick={() => onCommit(applyOutcome(game, outcome), `${outcome} recorded`)} className={outcome === "Home Run" ? "outcome-button accent" : "outcome-button"}>
+          {outcome}
+        </button>
+      ))}
+      {activeOption && (
+        <form className="notation-form" onSubmit={submitOut}>
+          <label>
+            {activeOption.label} notation
+            <input value={notation} onChange={(event) => setNotation(event.target.value)} placeholder={activeOption.placeholder} autoFocus />
+          </label>
+          <button type="submit">Record</button>
+        </form>
+      )}
+    </section>
   );
 }
 
@@ -392,6 +428,9 @@ function RunnerControls({ game, onCommit, feedbackId }) {
             </button>
             <button className="steal-action" onClick={() => onCommit(stealBase(game, base.key), base.steal)}>
               {base.steal}
+            </button>
+            <button className="caught-action" onClick={() => onCommit(caughtStealing(game, base.key), `${base.label} caught stealing`)}>
+              CS {base.label}
             </button>
             <button className="clear-action" onClick={() => onCommit(clearRunner(game, base.key), `${base.label} cleared`)}>
               Clear {base.label}
@@ -588,6 +627,7 @@ function Summary({ game, score, commitGame }) {
           </tbody>
         </table>
       </div>
+      <ScorecardPreview game={game} />
       {game.endedAt && (
         <section className="box-score-export" aria-label="Markdown box score">
           <div className="box-score-head">
@@ -606,6 +646,69 @@ function Summary({ game, score, commitGame }) {
       )}
       <p className="saved-note">Autosaved on this device.</p>
     </section>
+  );
+}
+
+function ScorecardPreview({ game }) {
+  const innings = Array.from({ length: Math.max(9, game.lineScore.length) }, (_, index) => index + 1);
+
+  return (
+    <section className="scorecard-preview" aria-label="Scorecard preview">
+      <div className="scorecard-title">
+        <strong>Scorecard View</strong>
+        <span>Plays by lineup spot and inning</span>
+      </div>
+      <div className="scorecard-scroll">
+        <ScorecardTable teamKey="away" game={game} innings={innings} />
+        <ScorecardTable teamKey="home" game={game} innings={innings} />
+      </div>
+    </section>
+  );
+}
+
+function ScorecardTable({ teamKey, game, innings }) {
+  const plays = game.plays ?? [];
+
+  return (
+    <table className="scorecard-table">
+      <caption>{game.teams[teamKey]}</caption>
+      <thead>
+        <tr>
+          <th>Spot</th>
+          <th>Batter</th>
+          {innings.map((inning) => (
+            <th key={inning}>{inning}</th>
+          ))}
+          <th>AB</th>
+          <th>H</th>
+          <th>BB</th>
+          <th>RBI</th>
+        </tr>
+      </thead>
+      <tbody>
+        {game.rosters[teamKey].lineup.map((player, index) => {
+          const spot = index + 1;
+          return (
+            <tr key={player.id}>
+              <th>{spot}</th>
+              <td className="scorecard-name">{player.name}</td>
+              {innings.map((inning) => (
+                <td key={inning} className="scorecard-cell">
+                  {plays
+                    .filter((play) => play.teamKey === teamKey && play.lineupSpot === spot && play.inning === inning)
+                    .map((play) => play.result)
+                    .join(", ")}
+                </td>
+              ))}
+              <td>{Math.max(0, player.stats.pa - player.stats.bb - player.stats.hbp)}</td>
+              <td>{player.stats.h}</td>
+              <td>{player.stats.bb}</td>
+              <td>{player.stats.rbi}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
